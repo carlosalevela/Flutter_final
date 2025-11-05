@@ -19,18 +19,24 @@ import '../domain/repositories/skin_analysis_repository.dart';
 import '../domain/usecases/analyze_skin_image.dart';
 import '../presentation/bloc/skin_analysis_bloc.dart';
 
+// History imports 👈 NUEVOS
+import '../data/datasources/history_datasource.dart';
+import '../data/repositories/history_repository_impl.dart';
+import '../domain/repositories/history_repository.dart';
+import '../domain/usecases/get_analysis_history_usecase.dart';
+import '../domain/usecases/delete_analysis_usecase.dart';
+import '../domain/usecases/save_analysis_usecase.dart';
+import '../presentation/bloc/history/history_bloc.dart';
+
 class InjectionContainer {
-  // Auth BLoC
   static late final AuthBloc authBloc;
-  
-  // Skin Analysis BLoC (tu existente)
   static late final SkinAnalysisBloc skinAnalysisBloc;
+  static late final HistoryBloc historyBloc; // 👈 NUEVO
+  static late final HistoryRepository historyRepository;
 
   static Future<void> init() async {
-    // Cargar variables de entorno
     await dotenv.load(fileName: ".env");
 
-    // ========== INICIALIZAR SUPABASE ==========
     await Supabase.initialize(
       url: dotenv.env['SUPABASE_URL']!,
       anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
@@ -38,25 +44,21 @@ class InjectionContainer {
 
     final supabaseClient = Supabase.instance.client;
 
-    // ========== AUTH (NUEVO) ==========
+    // ========== AUTH ==========
     
-    // Data sources
     final SupabaseAuthDataSource authDataSource = SupabaseAuthDataSourceImpl(
       supabaseClient: supabaseClient,
     );
 
-    // Repositories
     final AuthRepository authRepository = AuthRepositoryImpl(
       dataSource: authDataSource,
     );
 
-    // Use cases
     final signInUseCase = SignInUseCase(authRepository);
     final signUpUseCase = SignUpUseCase(authRepository);
     final signOutUseCase = SignOutUseCase(authRepository);
     final getCurrentUserUseCase = GetCurrentUserUseCase(authRepository);
 
-    // BLoC
     authBloc = AuthBloc(
       signInUseCase: signInUseCase,
       signUpUseCase: signUpUseCase,
@@ -64,27 +66,47 @@ class InjectionContainer {
       getCurrentUserUseCase: getCurrentUserUseCase,
     );
 
-    // ========== SKIN ANALYSIS (TU CÓDIGO EXISTENTE) ==========
+    // ========== SKIN ANALYSIS ==========
 
     final httpClient = http.Client();
 
-    final OpenAIDataSource remoteDataSource = OpenAIDataSourceImpl(
+    final OpenAIDataSource skinAnalysisDataSource = OpenAIDataSourceImpl(
       client: httpClient,
     );
 
-    final SkinAnalysisRepository repository = SkinAnalysisRepositoryImpl(
-      remoteDataSource: remoteDataSource,
+    final SkinAnalysisRepository skinAnalysisRepository =
+        SkinAnalysisRepositoryImpl(
+      remoteDataSource: skinAnalysisDataSource,
     );
 
-    final analyzeSkinImage = AnalyzeSkinImage(repository);
+    final analyzeSkinImage = AnalyzeSkinImage(skinAnalysisRepository);
 
     skinAnalysisBloc = SkinAnalysisBloc(
       analyzeSkinImage: analyzeSkinImage,
+    );
+
+    // ========== HISTORY (NUEVO) ==========
+
+    final HistoryDataSource historyDataSource = HistoryDataSourceImpl(
+      supabaseClient: supabaseClient,
+    );
+
+    final HistoryRepository historyRepository = HistoryRepositoryImpl(
+      dataSource: historyDataSource,
+    );
+
+    final getHistoryUseCase = GetAnalysisHistoryUseCase(historyRepository);
+    final deleteAnalysisUseCase = DeleteAnalysisUseCase(historyRepository);
+
+    historyBloc = HistoryBloc(
+      getHistoryUseCase: getHistoryUseCase,
+      deleteAnalysisUseCase: deleteAnalysisUseCase,
     );
   }
 
   static void dispose() {
     authBloc.close();
     skinAnalysisBloc.close();
+    historyBloc.close(); // 👈 NUEVO
   }
 }

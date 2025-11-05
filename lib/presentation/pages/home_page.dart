@@ -2,7 +2,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
-import '../bloc/auth/auth_bloc.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/injection_container.dart';
+import '../../domain/entities/skin_analysis_entity.dart'; // 👈 AGREGADO
+import '../../domain/usecases/save_analysis_usecase.dart';
+import '../bloc/auth/auth_bloc.dart' as auth; // 👈 CON ALIAS
+import '../bloc/history/history_bloc.dart';
 import '../bloc/skin_analysis_bloc.dart';
 import '../widgets/analysis_result_widget.dart';
 import 'auth/login_page.dart';
@@ -17,6 +22,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   File? _selectedImage;
   final ImagePicker _picker = ImagePicker();
+  bool _isSavingToHistory = false;
 
   Future<void> _pickImage(ImageSource source) async {
     try {
@@ -48,6 +54,17 @@ class _HomePageState extends State<HomePage> {
       SnackBar(
         content: Text(message),
         backgroundColor: Colors.red,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  void _showSuccess(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -107,7 +124,7 @@ class _HomePageState extends State<HomePage> {
           TextButton(
             onPressed: () {
               Navigator.pop(dialogContext);
-              context.read<AuthBloc>().add(SignOutEvent());
+              context.read<auth.AuthBloc>().add(auth.SignOutEvent()); // 👈 CON PREFIJO
             },
             child: const Text(
               'Salir',
@@ -119,12 +136,83 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Future<void> _saveToHistory(SkinAnalysisEntity analysis) async {
+    if (_selectedImage == null || _isSavingToHistory) return;
+
+    setState(() {
+      _isSavingToHistory = true;
+    });
+
+    try {
+      // 1. Subir imagen a Supabase Storage
+      final imageUrl = await _uploadImage(_selectedImage!);
+
+      // 2. Guardar análisis en la base de datos
+      final saveUseCase = SaveAnalysisUseCase(
+        InjectionContainer.historyRepository,
+      );
+
+      final result = await saveUseCase(
+        imageUrl: imageUrl,
+        diagnosis: analysis.diagnosis,
+        description: analysis.description,
+        riskLevel: analysis.riskLevel,
+        recommendations: analysis.recommendations,
+        requiresMedicalAttention: analysis.requiresMedicalAttention,
+      );
+
+      result.fold(
+        (failure) {
+          _showError('Error al guardar: ${failure.message}');
+        },
+        (_) {
+          _showSuccess('Análisis guardado en el historial');
+          // Recargar historial
+          context.read<HistoryBloc>().add(LoadHistoryEvent());
+        },
+      );
+    } catch (e) {
+      _showError('Error al guardar en historial: $e');
+    } finally {
+      setState(() {
+        _isSavingToHistory = false;
+      });
+    }
+  }
+
+  Future<String> _uploadImage(File imageFile) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final userId = supabase.auth.currentUser!.id;
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final extension = imageFile.path.split('.').last;
+      final fileName = '$userId/$timestamp.$extension';
+
+      // Subir archivo
+      await supabase.storage.from('skin-images').upload(
+            fileName,
+            imageFile,
+            fileOptions: const FileOptions(
+              cacheControl: '3600',
+              upsert: false,
+            ),
+          );
+
+      // Obtener URL pública
+      final imageUrl = supabase.storage.from('skin-images').getPublicUrl(fileName);
+
+      return imageUrl;
+    } catch (e) {
+      throw Exception('Error al subir imagen: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return BlocListener<AuthBloc, AuthState>(
+    return BlocListener<auth.AuthBloc, auth.AuthState>( // 👈 CON PREFIJO
       listener: (context, authState) {
         // Cuando el usuario cierra sesión, ir a LoginPage
-        if (authState is Unauthenticated) {
+        if (authState is auth.Unauthenticated) { // 👈 CON PREFIJO
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (_) => const LoginPage()),
             (route) => false,
@@ -150,6 +238,8 @@ class _HomePageState extends State<HomePage> {
           listener: (context, state) {
             if (state is SkinAnalysisError) {
               _showError(state.message);
+            } else if (state is SkinAnalysisLoaded) {
+              _saveToHistory(state.analysis);
             }
           },
           builder: (context, state) {
@@ -255,9 +345,10 @@ class _HomePageState extends State<HomePage> {
 
                   if (_selectedImage != null) ...[
                     ElevatedButton.icon(
-                      onPressed:
-                          state is SkinAnalysisLoading ? null : _analyzeImage,
-                      icon: state is SkinAnalysisLoading
+                      onPressed: state is SkinAnalysisLoading || _isSavingToHistory
+                          ? null
+                          : _analyzeImage,
+                      icon: state is SkinAnalysisLoading || _isSavingToHistory
                           ? const SizedBox(
                               width: 20,
                               height: 20,
@@ -270,7 +361,9 @@ class _HomePageState extends State<HomePage> {
                       label: Text(
                         state is SkinAnalysisLoading
                             ? 'Analizando...'
-                            : 'Analizar con IA',
+                            : _isSavingToHistory
+                                ? 'Guardando...'
+                                : 'Analizar con IA',
                       ),
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 15),
