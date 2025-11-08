@@ -137,48 +137,44 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _saveToHistory(SkinAnalysisEntity analysis) async {
-    if (_selectedImage == null || _isSavingToHistory) return;
+  if (_selectedImage == null || _isSavingToHistory) return;
 
+  setState(() {
+    _isSavingToHistory = true;
+  });
+
+  try {
+    // 1. Subir imagen a Supabase Storage
+    final imageUrl = await _uploadImage(_selectedImage!);
+
+    // 2. Usar el UseCase del container 👇
+    final result = await InjectionContainer.saveAnalysisUseCase(
+      imageUrl: imageUrl,
+      diagnosis: analysis.diagnosis,
+      description: analysis.description,
+      riskLevel: analysis.riskLevel,
+      recommendations: analysis.recommendations,
+      requiresMedicalAttention: analysis.requiresMedicalAttention,
+    );
+
+    result.fold(
+      (failure) {
+        _showError('Error al guardar: ${failure.message}');
+      },
+      (_) {
+        _showSuccess('✅ Análisis guardado en el historial');
+        // Recargar historial
+        context.read<HistoryBloc>().add(LoadHistoryEvent());
+      },
+    );
+  } catch (e) {
+    _showError('Error al guardar en historial: $e');
+  } finally {
     setState(() {
-      _isSavingToHistory = true;
+      _isSavingToHistory = false;
     });
-
-    try {
-      // 1. Subir imagen a Supabase Storage
-      final imageUrl = await _uploadImage(_selectedImage!);
-
-      // 2. Guardar análisis en la base de datos
-      final saveUseCase = SaveAnalysisUseCase(
-        InjectionContainer.historyRepository,
-      );
-
-      final result = await saveUseCase(
-        imageUrl: imageUrl,
-        diagnosis: analysis.diagnosis,
-        description: analysis.description,
-        riskLevel: analysis.riskLevel,
-        recommendations: analysis.recommendations,
-        requiresMedicalAttention: analysis.requiresMedicalAttention,
-      );
-
-      result.fold(
-        (failure) {
-          _showError('Error al guardar: ${failure.message}');
-        },
-        (_) {
-          _showSuccess('Análisis guardado en el historial');
-          // Recargar historial
-          context.read<HistoryBloc>().add(LoadHistoryEvent());
-        },
-      );
-    } catch (e) {
-      _showError('Error al guardar en historial: $e');
-    } finally {
-      setState(() {
-        _isSavingToHistory = false;
-      });
-    }
   }
+}
 
   Future<String> _uploadImage(File imageFile) async {
     try {

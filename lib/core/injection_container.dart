@@ -19,7 +19,7 @@ import '../domain/repositories/skin_analysis_repository.dart';
 import '../domain/usecases/analyze_skin_image.dart';
 import '../presentation/bloc/skin_analysis_bloc.dart';
 
-// History imports 👈 NUEVOS
+// History imports
 import '../data/datasources/history_datasource.dart';
 import '../data/repositories/history_repository_impl.dart';
 import '../domain/repositories/history_repository.dart';
@@ -29,10 +29,14 @@ import '../domain/usecases/save_analysis_usecase.dart';
 import '../presentation/bloc/history/history_bloc.dart';
 
 class InjectionContainer {
+  // BLoCs
   static late final AuthBloc authBloc;
   static late final SkinAnalysisBloc skinAnalysisBloc;
-  static late final HistoryBloc historyBloc; // 👈 NUEVO
+  static late final HistoryBloc historyBloc;
+  
+  // Repositorio y UseCase expuestos 👇 AGREGADOS
   static late final HistoryRepository historyRepository;
+  static late final SaveAnalysisUseCase saveAnalysisUseCase;
 
   static Future<void> init() async {
     await dotenv.load(fileName: ".env");
@@ -85,18 +89,22 @@ class InjectionContainer {
       analyzeSkinImage: analyzeSkinImage,
     );
 
-    // ========== HISTORY (NUEVO) ==========
+    // ========== HISTORY ==========
 
     final HistoryDataSource historyDataSource = HistoryDataSourceImpl(
       supabaseClient: supabaseClient,
     );
 
-    final HistoryRepository historyRepository = HistoryRepositoryImpl(
+    // 👇 QUITAR 'final' - Asignar a la variable estática
+    historyRepository = HistoryRepositoryImpl(
       dataSource: historyDataSource,
     );
 
     final getHistoryUseCase = GetAnalysisHistoryUseCase(historyRepository);
     final deleteAnalysisUseCase = DeleteAnalysisUseCase(historyRepository);
+    
+    // 👇 AGREGAR - Crear y exponer el SaveAnalysisUseCase
+    saveAnalysisUseCase = SaveAnalysisUseCase(historyRepository);
 
     historyBloc = HistoryBloc(
       getHistoryUseCase: getHistoryUseCase,
@@ -107,6 +115,6 @@ class InjectionContainer {
   static void dispose() {
     authBloc.close();
     skinAnalysisBloc.close();
-    historyBloc.close(); // 👈 NUEVO
+    historyBloc.close();
   }
 }
