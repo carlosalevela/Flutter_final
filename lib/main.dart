@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'core/injection_container.dart';
 import 'presentation/bloc/auth/auth_bloc.dart';
+import 'presentation/bloc/history/history_bloc.dart'; // 👈 AGREGAR ESTE IMPORT
 import 'presentation/bloc/skin_analysis_bloc.dart';
 import 'presentation/pages/auth/login_page.dart';
-import 'presentation/pages/home_page.dart';
+import 'presentation/pages/main_page.dart'; // 👈 CAMBIAR A MAIN_PAGE
+
+// 👇 NUEVOS IMPORTS (únicos cambios de importación)
+import 'presentation/pages/info_page.dart';
+import 'presentation/pages/history_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +34,10 @@ class MyApp extends StatelessWidget {
         // Skin Analysis BLoC
         BlocProvider.value(
           value: InjectionContainer.skinAnalysisBloc,
+        ),
+        // History BLoC 👈 AGREGAR ESTE
+        BlocProvider.value(
+          value: InjectionContainer.historyBloc,
         ),
       ],
       child: MaterialApp(
@@ -92,11 +101,21 @@ class AuthWrapper extends StatelessWidget {
             ),
           );
         }
-        // Si está autenticado, ir a HomePage
+        // Si está autenticado, ir a InfoPage (home) con callbacks
         else if (state is Authenticated) {
-          return BlocProvider.value(
-            value: InjectionContainer.skinAnalysisBloc,
-            child: const HomePage(),
+          return InfoPage(
+            onAnalyze: () {
+              // Navega a tu flujo de análisis (usa MainPage si ahí está la cámara/analizador)
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const MainPage()),
+              );
+            },
+            onHistory: () {
+              // Navega al historial
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const HistoryPage()),
+              );
+            },
           );
         }
         // Si no está autenticado, ir a LoginPage
