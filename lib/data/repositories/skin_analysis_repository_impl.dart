@@ -3,10 +3,10 @@ import 'package:dartz/dartz.dart';
 import '../../core/errors/failures.dart';
 import '../../domain/entities/skin_analysis_entity.dart';
 import '../../domain/repositories/skin_analysis_repository.dart';
-import '../datasources/openai_datasource.dart'; // 👈 IMPORT DE OPENAI
+import '../datasources/groq_datasource.dart'; // 👈 CAMBIAR A GROQ
 
 class SkinAnalysisRepositoryImpl implements SkinAnalysisRepository {
-  final OpenAIDataSource remoteDataSource; // 👈 TIPO OPENAI
+  final GroqDataSource remoteDataSource; // 👈 CAMBIAR TIPO
 
   SkinAnalysisRepositoryImpl({
     required this.remoteDataSource,
@@ -63,7 +63,7 @@ class SkinAnalysisRepositoryImpl implements SkinAnalysisRepository {
         return const Left(
           ConnectionFailure('Tiempo de espera agotado. Intenta de nuevo'),
         );
-      } else if (e.toString().contains('OpenAI')) {
+      } else if (e.toString().contains('Groq')) { // 👈 CAMBIAR TEXTO
         return Left(
           AIFailure('Error del servicio de IA: ${e.toString()}'),
         );

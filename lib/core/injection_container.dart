@@ -12,8 +12,8 @@ import '../domain/usecases/auth/sign_out_usecase.dart';
 import '../domain/usecases/auth/get_current_user_usecase.dart';
 import '../presentation/bloc/auth/auth_bloc.dart';
 
-// Skin Analysis imports
-import '../data/datasources/openai_datasource.dart';
+// Skin Analysis imports - CAMBIAR A GROQ
+import '../data/datasources/groq_datasource.dart'; // 👈 CAMBIO
 import '../data/repositories/skin_analysis_repository_impl.dart';
 import '../domain/repositories/skin_analysis_repository.dart';
 import '../domain/usecases/analyze_skin_image.dart';
@@ -34,7 +34,7 @@ class InjectionContainer {
   static late final SkinAnalysisBloc skinAnalysisBloc;
   static late final HistoryBloc historyBloc;
   
-  // Repositorio y UseCase expuestos 👇 AGREGADOS
+  // Repositorio y UseCase expuestos
   static late final HistoryRepository historyRepository;
   static late final SaveAnalysisUseCase saveAnalysisUseCase;
 
@@ -70,11 +70,12 @@ class InjectionContainer {
       getCurrentUserUseCase: getCurrentUserUseCase,
     );
 
-    // ========== SKIN ANALYSIS ==========
+    // ========== SKIN ANALYSIS - CON GROQ ==========
 
     final httpClient = http.Client();
 
-    final OpenAIDataSource skinAnalysisDataSource = OpenAIDataSourceImpl(
+    // 👇 CAMBIO: Usar Groq DataSource
+    final GroqDataSource skinAnalysisDataSource = GroqDataSourceImpl(
       client: httpClient,
     );
 
@@ -95,15 +96,12 @@ class InjectionContainer {
       supabaseClient: supabaseClient,
     );
 
-    // 👇 QUITAR 'final' - Asignar a la variable estática
     historyRepository = HistoryRepositoryImpl(
       dataSource: historyDataSource,
     );
 
     final getHistoryUseCase = GetAnalysisHistoryUseCase(historyRepository);
     final deleteAnalysisUseCase = DeleteAnalysisUseCase(historyRepository);
-    
-    // 👇 AGREGAR - Crear y exponer el SaveAnalysisUseCase
     saveAnalysisUseCase = SaveAnalysisUseCase(historyRepository);
 
     historyBloc = HistoryBloc(
