@@ -57,6 +57,10 @@ dependencies:
 
   # Supabase 🚀
   supabase_flutter: ^2.0.0
+
+  image: ^4.2.0
+
+  crypto: ^3.0.3
   
 
 dev_dependencies:
